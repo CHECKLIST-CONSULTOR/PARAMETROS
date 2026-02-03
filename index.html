@@ -1,0 +1,207 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <title>Sistema de Parâmetros - Acesso Restrito</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    <style>
+        /* Estilos do Login */
+        #telaLogin { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: #2c3e50; display: flex; justify-content: center; align-items: center; z-index: 999; }
+        .login-box { background: white; padding: 30px; border-radius: 8px; text-align: center; box-shadow: 0 10px 25px rgba(0,0,0,0.5); width: 300px; }
+        .login-box input { width: 90%; padding: 10px; margin: 10px 0; border: 1px solid #ccc; border-radius: 4px; }
+        .btn-entrar { background: #27ae60; color: white; border: none; padding: 10px 20px; cursor: pointer; font-weight: bold; width: 100%; border-radius: 4px; }
+
+        /* Estilos do Sistema (Só aparecem após login) */
+        #sistema { display: none; font-family: sans-serif; background: #2c3e50; padding: 20px; min-height: 100vh; }
+        .main { background: #ecf0f1; padding: 20px; border-radius: 8px; position: relative; }
+        
+        .header-sistema { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; border-bottom: 1px solid #bdc3c7; padding-bottom: 10px; }
+        .topo { background: #bdc3c7; padding: 15px; margin-bottom: 20px; display: flex; gap: 10px; align-items: flex-end; border-radius: 4px; }
+        
+        table { width: 100%; border-collapse: collapse; background: white; }
+        th { background: #34495e; color: white; padding: 10px; text-align: left; }
+        td { border: 1px solid #bdc3c7; padding: 8px; font-size: 13px; }
+        tr:nth-child(even) { background: #f9f9f9; }
+        
+        .badge { background: #3498db; color: white; padding: 2px 6px; border-radius: 3px; font-size: 10px; font-weight: bold; }
+        .btn-sair { background: #e74c3c; color: white; border: none; padding: 8px 15px; cursor: pointer; font-weight: bold; border-radius: 4px; }
+    </style>
+</head>
+<body oncontextmenu="return false;"> 
+
+<div id="telaLogin">
+    <div class="login-box">
+        <h3>Acesso Restrito</h3>
+        <input type="text" id="usuario" placeholder="Usuário" autocomplete="off">
+        <input type="password" id="senha" placeholder="Senha">
+        <button class="btn-entrar" onclick="verificarAcesso()">ENTRAR</button>
+        <p id="erro" style="color: red; font-size: 12px; display: none;">Dados incorretos!</p>
+    </div>
+</div>
+
+<div id="sistema">
+    <div class="main">
+        <div class="header-sistema">
+            <h2 style="margin:0; color:#2c3e50;">⚙️ Gestão de Parâmetros</h2>
+            <button class="btn-sair" onclick="sair()">🚪 SAIR</button>
+        </div>
+
+        <div class="topo">
+            <div style="display:flex; flex-direction:column; gap:5px;">
+                <label style="font-size:10px; font-weight:bold;">ARQUIVO</label>
+                <button onclick="document.getElementById('fIn').click()" style="background:#2980b9; color:white; border:none; padding:8px; cursor:pointer; font-weight:bold; border-radius:4px;">📥 IMPORTAR</button>
+            </div>
+            
+            <input type="file" id="fIn" accept=".xlsx, .xls" style="display:none" onchange="processar(this)">
+            
+            <div style="display:flex; flex-direction:column; gap:5px; flex:1;">
+                <label style="font-size:10px; font-weight:bold;">MÓDULO (pm_grupo)</label>
+                <input type="text" id="fGrupo" list="listaModulos" placeholder="Clique para ver os módulos..." style="padding:8px; border-radius:4px; border:1px solid #7f8c8d;">
+                <datalist id="listaModulos"></datalist>
+            </div>
+
+            <div style="display:flex; flex-direction:column; gap:5px; flex:1;">
+                <label style="font-size:10px; font-weight:bold;">DESCRIÇÃO (pm_ds)</label>
+                <input type="text" id="fDs" placeholder="Busca LIKE %%" style="padding:8px; border-radius:4px; border:1px solid #7f8c8d;">
+            </div>
+
+            <button onclick="filtrar()" style="background:#27ae60; color:white; border:none; padding:8px 20px; cursor:pointer; font-weight:bold; border-radius:4px;">🔍 BUSCAR</button>
+            <button onclick="limpar()" style="background:#7f8c8d; color:white; border:none; padding:8px 15px; cursor:pointer; font-weight:bold; border-radius:4px;">🧹 LIMPAR</button>
+        </div>
+
+        <table>
+            <thead>
+                <tr>
+                    <th width="15%">MÓDULO</th>
+                    <th width="35%">DESCRIÇÃO</th>
+                    <th width="10%">VALOR</th>
+                    <th width="40%">REGRAS</th>
+                </tr>
+            </thead>
+            <tbody id="corpo">
+                <tr><td colspan="4" style="text-align:center; padding:20px;">Utilize o botão Importar para carregar o arquivo GER_PM.xlsx</td></tr>
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<script>
+    const USUARIO_DEFINIDO = "ZOLY";
+    const SENHA_DEFINIDA = "descubra";
+    let memoria = [];
+
+    document.addEventListener('keypress', function (e) {
+        if (e.key === 'Enter') {
+            if(document.getElementById("telaLogin").style.display !== "none") {
+                verificarAcesso();
+            } else {
+                filtrar();
+            }
+        }
+    });
+
+    function verificarAcesso() {
+        const u = document.getElementById("usuario").value;
+        const s = document.getElementById("senha").value;
+        if (u === USUARIO_DEFINIDO && s === SENHA_DEFINIDA) {
+            document.getElementById("telaLogin").style.display = "none";
+            document.getElementById("sistema").style.display = "block";
+            carregarDaMemoria();
+        } else {
+            document.getElementById("erro").style.display = "block";
+            document.getElementById("senha").value = "";
+        }
+    }
+
+    function sair() {
+        document.getElementById("usuario").value = "";
+        document.getElementById("senha").value = "";
+        document.getElementById("erro").style.display = "none";
+        document.getElementById("sistema").style.display = "none";
+        document.getElementById("telaLogin").style.display = "flex";
+    }
+
+    document.onkeydown = function(e) {
+        if (e.keyCode == 123 || (e.ctrlKey && e.shiftKey && (e.keyCode == 73 || e.keyCode == 74)) || (e.ctrlKey && e.keyCode == 85)) {
+            return false;
+        }
+    };
+
+    function processar(input) {
+        const reader = new FileReader();
+        reader.onload = function(e) {
+            const data = new Uint8Array(e.target.result);
+            const wb = XLSX.read(data, {type: 'array'});
+            const rows = XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]], {header: 1});
+
+            memoria = rows.slice(1).map(r => ({
+                grupo: String(r[3] || "").trim(),
+                ds: String(r[1] || "").trim(),
+                valor: String(r[2] || "").trim(),
+                extra: [r[4], r[5], r[7]].filter(v => v && String(v).toUpperCase() !== 'NULL').join(' - ')
+            })).sort((a, b) => a.grupo.localeCompare(b.grupo));
+
+            localStorage.setItem('db_wf_protegido', JSON.stringify(memoria));
+            atualizarSugestoesModulos(); // Atualiza a lista de módulos
+            desenhar(memoria);
+            alert("✅ Dados Importados e Salvos!");
+        };
+        reader.readAsArrayBuffer(input.files[0]);
+    }
+
+    function carregarDaMemoria() {
+        const salvo = localStorage.getItem('db_wf_protegido');
+        if (salvo) {
+            memoria = JSON.parse(salvo);
+            atualizarSugestoesModulos(); // Atualiza a lista de módulos ao carregar
+            desenhar(memoria);
+        }
+    }
+
+    // NOVA FUNÇÃO: Preenche as sugestões de módulos automaticamente
+    function atualizarSugestoesModulos() {
+        const datalist = document.getElementById("listaModulos");
+        // Filtra nomes únicos e remove vazios ou "NULL"
+        const modulosUnicos = [...new Set(memoria.map(item => item.grupo))]
+            .filter(g => g && g.toUpperCase() !== 'NULL')
+            .sort();
+
+        datalist.innerHTML = modulosUnicos
+            .map(m => `<option value="${m}">`)
+            .join('');
+    }
+
+    function desenhar(dados) {
+        const corpo = document.getElementById("corpo");
+        if(dados.length === 0) {
+            corpo.innerHTML = '<tr><td colspan="4" style="text-align:center">Nenhum registro encontrado.</td></tr>';
+            return;
+        }
+        corpo.innerHTML = dados.map(i => `
+            <tr>
+                <td><span class="badge">${i.grupo}</span></td>
+                <td><b>${i.ds}</b></td>
+                <td style="color:#2980b9; font-weight:bold">${i.valor}</td>
+                <td style="color:#666; font-size:11px">${i.extra}</td>
+            </tr>
+        `).join('');
+    }
+
+    function filtrar() {
+        const g = document.getElementById("fGrupo").value.toLowerCase();
+        const d = document.getElementById("fDs").value.toLowerCase();
+        const filtrados = memoria.filter(i => 
+            i.grupo.toLowerCase().includes(g) && 
+            i.ds.toLowerCase().includes(d)
+        );
+        desenhar(filtrados);
+    }
+
+    function limpar() {
+        document.getElementById("fGrupo").value = "";
+        document.getElementById("fDs").value = "";
+        desenhar(memoria);
+    }
+</script>
+</body>
+</html>
